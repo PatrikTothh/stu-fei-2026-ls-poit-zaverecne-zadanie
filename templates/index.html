@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="sk">
+<head>
+    <meta charset="UTF-8">
+    <title>POIT - Ovládanie LED</title>
+    <style>
+        body { font-family: sans-serif; text-align: center; padding-top: 50px; }
+        .container { border: 1px solid #ccc; display: inline-block; padding: 20px; border-radius: 10px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Riadenie intenzity LED</h1>
+        
+        <input type="number" id="intenzita" name="intenzita" min="0" max="255" value="0">
+        <button onclick="poslatUdaje()">Nastaviť jas</button>
+        
+        <p id="status">Aktuálny stav: Čakám na vstup...</p>
+    </div>
+
+    <script>
+        function poslatUdaje() {
+            const val = document.getElementById('intenzita').value;
+            const statusText = document.getElementById('status');
+
+            // Vytvoríme dáta pre server
+            let formData = new FormData();
+            formData.append('intenzita', val);
+
+            // Pošleme na server bez obnovy stránky
+            fetch('/set_led', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if(data.status === "ok") {
+                    statusText.innerText = "Aktuálny stav: Nastavené na " + data.value;
+                }
+            })
+            .catch(error => {
+                statusText.innerText = "Chyba pri komunikácii!";
+                console.error('Error:', error);
+            });
+        }
+    </script>
+</body>
+</html>
