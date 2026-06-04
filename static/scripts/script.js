@@ -130,20 +130,63 @@ function showView(view) {
   } else if (view === "archive") {
     Plotly.Plots.resize("archive-plot-lux");
     Plotly.Plots.resize("archive-plot-pwm");
-  } else if (view === "database") {
+  }  else if (view === "database") {
     Plotly.Plots.resize("db-plot-lux");
     Plotly.Plots.resize("db-plot-pwm");
   }
 }
 
 function loadDatabase() {
-  const id = document.getElementById("dbIndex").value;
-  const info = document.getElementById("db-info");
+    const id = document.getElementById("dbIndex").value;
+    const info = document.getElementById("db-info");
 
-  info.innerHTML = `<span class="text-warning">Pripravujem pripojenie k databáze pre ID: ${id}...</span>`;
+    info.innerHTML = `<span class="text-primary">Sťahujem dáta z MySQL pre ID: ${id}...</span>`;
 
-  console.log("Tu bude volanie fetch('/get_db_log/" + id + "')");
-  // Sem neskôr doplníme fetch volanie, keď budeme mať hotový app.py pre DB
+    fetch(`/get_db_log/${id}`)
+        .then((response) => {
+            if (!response.ok) throw new Error("Záznam s týmto ID sa v MySQL nenachádza.");
+            return response.json();
+        })
+        .then((data) => {
+            info.innerText = `[MySQL] Načítané zo dňa: ${data.datum} (${data.pocet_merani} vzoriek)`;
+            
+            // Zavoláme našu pomocnú funkciu pre ID grafov v tabe Databáza
+            renderPlots(data, "db-plot-lux", "db-plot-pwm", "Databáza");
+        })
+        .catch((err) => {
+            alert(err.message);
+            info.innerText = "";
+        });
+}
+
+// Pomocná funkcia pre vykreslenie historických grafov (Archív aj DB)
+function renderPlots(data, luxTarget, pwmTarget, titlePrefix) {
+    // Extrahujeme dáta a pre istotu konvertujeme na čísla
+    const x = data.merania.map(m => m.timestamp);
+    const yLux = data.merania.map(m => Number(m.input));
+    const ySet = data.merania.map(m => Number(m.setpoint));
+    const yPwm = data.merania.map(m => Number(m.output));
+
+    const commonLayout = {
+        font: { family: "Segoe UI, Roboto, Helvetica, Arial, sans-serif", size: 12 },
+        paper_bgcolor: "rgba(0,0,0,0)",
+        plot_bgcolor: "#fcfcfc",
+        showlegend: true,
+        legend: { orientation: "h", y: -0.2 },
+        margin: { t: 40, b: 60, l: 60, r: 40 }
+    };
+
+    const traceLux = [
+        { x: x, y: ySet, name: "Žiadaná (Setpoint)", line: { color: "#ff7f0e", width: 3 } },
+        { x: x, y: yLux, name: "Aktuálna (Input)", line: { color: "#1f77b4", width: 2 } }
+    ];
+
+    const tracePwm = [
+        { x: x, y: yPwm, name: "Výkon (PWM)", fill: "tozeroy", fillcolor: "rgba(44, 160, 44, 0.2)", line: { color: "#2ca02c", width: 2 } }
+    ];
+
+    Plotly.newPlot(luxTarget, traceLux, { ...commonLayout, title: { text: titlePrefix + ": Intenzita [lx]" } }, { responsive: true });
+    Plotly.newPlot(pwmTarget, tracePwm, { ...commonLayout, title: { text: titlePrefix + ": Výkon [PWM]" }, yaxis: { range: [0, 260] } }, { responsive: true });
 }
 
 // Inicializácia Plotly grafu
@@ -242,95 +285,24 @@ function initGauges() {
 initGauges();
 
 function loadArchive() {
-  const index = document.getElementById("archiveIndex").value;
-  const info = document.getElementById("archive-info");
+    const index = document.getElementById("archiveIndex").value;
+    const info = document.getElementById("archive-info");
 
-  fetch(`/get_log/${index}`)
-    .then((response) => {
-      if (!response.ok) throw new Error("Záznam nebol nájdený.");
-      return response.json();
-    })
-    .then((data) => {
-      info.innerText = `Načítané meranie zo dňa: ${data.datum} (${data.pocet_merani} vzoriek)`;
-
-      const x = data.merania.map((m) => m.timestamp);
-      const yLux = data.merania.map((m) => m.input);
-      const ySet = data.merania.map((m) => m.setpoint);
-      const yPwm = data.merania.map((m) => m.output);
-
-      // Spoločné nastavenia vzhľadu (rovnaké ako pri live grafoch)
-      const commonLayout = {
-        font: {
-          family: "Segoe UI, Roboto, Helvetica, Arial, sans-serif",
-          size: 12,
-        },
-        paper_bgcolor: "rgba(0,0,0,0)",
-        plot_bgcolor: "#fcfcfc",
-        showlegend: true,
-        legend: { orientation: "h", y: -0.2 },
-        margin: { t: 40, b: 60, l: 60, r: 40 },
-      };
-
-      // 1. ARCHÍV LUX (Setpoint + Input)
-      const traceLux = [
-        {
-          x: x,
-          y: ySet,
-          name: "Žiadaná (Setpoint)",
-          line: { color: "#ff7f0e", width: 3 },
-        },
-        {
-          x: x,
-          y: yLux,
-          name: "Aktuálna (Input)",
-          line: { color: "#1f77b4", width: 2 },
-        },
-      ];
-
-      const layoutLux = {
-        ...commonLayout,
-        title: {
-          text: "Archív: Priebeh intenzity",
-          font: { size: 18, color: "#2c3e50" },
-        },
-        yaxis: { title: "Intenzita [lx]", gridcolor: "#eee" },
-        xaxis: { title: "Čas", gridcolor: "#eee" },
-      };
-
-      // 2. ARCHÍV PWM (Output)
-      const tracePwm = [
-        {
-          x: x,
-          y: yPwm,
-          name: "Výkon (PWM)",
-          fill: "tozeroy",
-          fillcolor: "rgba(44, 160, 44, 0.2)",
-          line: { color: "#2ca02c", width: 2 },
-        },
-      ];
-
-      const layoutPwm = {
-        ...commonLayout,
-        title: {
-          text: "Archív: Výkon regulátora",
-          font: { size: 16, color: "#2c3e50" },
-        },
-        yaxis: { title: "PWM (0-255)", range: [0, 260], gridcolor: "#eee" },
-        xaxis: { title: "Čas", gridcolor: "#eee" },
-      };
-
-      // Vykreslenie
-      Plotly.newPlot("archive-plot-lux", traceLux, layoutLux, {
-        responsive: true,
-      });
-      Plotly.newPlot("archive-plot-pwm", tracePwm, layoutPwm, {
-        responsive: true,
-      });
-    })
-    .catch((err) => {
-      alert(err.message);
-      info.innerText = "";
-    });
+    fetch(`/get_log/${index}`)
+        .then((response) => {
+            if (!response.ok) throw new Error("Záznam nebol nájdený v textovom súbore.");
+            return response.json();
+        })
+        .then((data) => {
+            info.innerText = `[Súbor] Načítané zo dňa: ${data.datum} (${data.pocet_merani} vzoriek)`;
+            
+            // Zavoláme pomocnú funkciu pre ID grafov v tabe Archív
+            renderPlots(data, "archive-plot-lux", "archive-plot-pwm", "Archív");
+        })
+        .catch((err) => {
+            alert(err.message);
+            info.innerText = "";
+        });
 }
 
 setInterval(() => {
