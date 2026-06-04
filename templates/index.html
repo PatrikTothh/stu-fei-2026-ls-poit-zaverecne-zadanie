@@ -3,215 +3,194 @@
   <head>
     <meta charset="UTF-8" />
     <title>POIT - PID Monitor</title>
-    <style>
-      body {
-        font-family: sans-serif;
-        text-align: center;
-        background-color: #f4f4f4;
-      }
-      .card {
-        background: white;
-        border-radius: 10px;
-        padding: 20px;
-        margin: 20px auto;
-        width: 300px;
-        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-      }
-      .value {
-        font-size: 24px;
-        font-weight: bold;
-        color: #007bff;
-      }
-      .label {
-        color: #666;
-        font-size: 14px;
-      }
-      .log-container {
-        background: white;
-        border-radius: 10px;
-        padding: 20px;
-        margin: 20px auto;
-        width: 80%;
-        max-width: 650px;
-        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-        max-height: 300px;
-        overflow-y: auto; /* Pridá scrollbar po 300px */
-      }
-      table {
-        width: 100%;
-        border-collapse: collapse;
-        margin-top: 10px;
-      }
-      th,
-      td {
-        border-bottom: 1px solid #ddd;
-        padding: 8px;
-        text-align: center;
-      }
-      th {
-        background-color: #f8f9fa;
-        position: sticky;
-        top: 0;
-      }
-    </style>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='style.css') }}"
+    />
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
   </head>
-  <body>
-    <h1>PID Regulácia Intenzity Svetla</h1>
+  <body class="bg-light">
+    <div class="container py-4">
+      <header class="pb-3 mb-4 border-bottom text-center">
+        <span class="fs-4 fw-bold">PID Regulácia Intenzity Svetla</span>
+      </header>
 
-    <div class="card" style="width: 80%; max-width: 650px">
-      <div id="connection-status" style="color: red; font-weight: bold">
-        STAV: ODPOJENÉ
+      <!-- Sekcia pripojenia -->
+      <div class="card shadow-sm mb-4">
+        <div
+          class="card-body d-flex justify-content-between align-items-center"
+        >
+          <div>
+            <span id="connection-status" class="badge bg-danger fs-6"
+              >STAV: ODPOJENÉ</span
+            >
+          </div>
+          <div class="btn-group">
+            <button
+              id="openBtn"
+              class="btn btn-outline-primary"
+              onclick="openConnection()"
+            >
+              Open Connection
+            </button>
+            <button
+              id="closeBtn"
+              class="btn btn-outline-danger"
+              onclick="closeConnection()"
+              disabled
+            >
+              Close Connection
+            </button>
+          </div>
+        </div>
       </div>
-      <br />
-      <button id="openBtn" class="btn-start" onclick="openConnection()">
-        OPEN (Inicializácia)
-      </button>
-      <button
-        id="closeBtn"
-        class="btn-stop"
-        onclick="closeConnection()"
-        disabled
-      >
-        CLOSE (Ukončenie)
-      </button>
-    </div>
-    <div class="card">
-      <h3>Nastavenie</h3>
-      <input type="number" id="intenzita" value="100" min="0" max="1000" />
-      <button onclick="poslatUdaje()">Nastaviť Luxy</button>
-    </div>
 
-    <div class="controls">
-      <button id="startBtn" class="btn-start" onclick="startMonitoring()">
-        START
-      </button>
-      <button id="stopBtn" class="btn-stop" onclick="stopMonitoring()" disabled>
-        STOP
-      </button>
-    </div>
+      <!-- Tab Navigácia (Bootstrap Pills) -->
+      <ul class="nav nav-pills nav-fill mb-4 bg-white p-2 rounded shadow-sm">
+        <li class="nav-item">
+          <button
+            id="btn-dash"
+            class="nav-link active"
+            onclick="showView('dashboard')"
+          >
+            Monitor
+          </button>
+        </li>
+        <li class="nav-item">
+          <button id="btn-graph" class="nav-link" onclick="showView('graph')">
+            Grafy
+          </button>
+        </li>
+      </ul>
 
-    <div style="display: flex; justify-content: center; gap: 20px">
-      <div class="card">
-        <div class="label">Žiadaná hodnota (Setpoint)</div>
-        <div id="val-setpoint" class="value">0</div>
-        <div class="label">Lux</div>
+      <!-- POHĽAD: MONITOR -->
+      <div id="view-dashboard" class="view-content">
+        <div class="row g-4">
+          <!-- Nastavenie -->
+          <div class="col-md-4">
+            <div class="card h-100 shadow-sm">
+              <div class="card-body">
+                <h5 class="card-title">Nastavenie Setpointu</h5>
+                <div class="input-group mb-3">
+                  <input
+                    type="number"
+                    id="intenzita"
+                    class="form-control"
+                    value="100"
+                    min="0"
+                    max="1000"
+                  />
+                  <span class="input-group-text">lx</span>
+                </div>
+                <button class="btn btn-primary w-100" onclick="poslatUdaje()">
+                  Nastaviť
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Ovládanie merania -->
+          <div class="col-md-8">
+            <div class="card h-100 shadow-sm">
+              <div class="card-body text-center">
+                <h5 class="card-title">Ovládanie merania</h5>
+                <div class="d-grid gap-2 d-md-block mt-4">
+                  <button
+                    id="startBtn"
+                    class="btn btn-success btn-lg px-5 me-md-2"
+                    onclick="startMonitoring()"
+                    disabled
+                  >
+                    START
+                  </button>
+                  <button
+                    id="stopBtn"
+                    class="btn btn-danger btn-lg px-5"
+                    onclick="stopMonitoring()"
+                    disabled
+                  >
+                    STOP
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Hodnoty (Karty) -->
+          <div class="col-md-4">
+            <div class="card text-white bg-warning shadow-sm">
+              <div class="card-body text-center">
+                <h6 class="card-title">Žiadaná (Setpoint)</h6>
+                <h2 id="val-setpoint" class="display-6 fw-bold">---</h2>
+                <small>Lux (lx)</small>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="card text-white bg-primary shadow-sm">
+              <div class="card-body text-center">
+                <h6 class="card-title">Aktuálna (Input)</h6>
+                <h2 id="val-input" class="display-6 fw-bold">---</h2>
+                <small>Lux (lx)</small>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="card text-white bg-success shadow-sm">
+              <div class="card-body text-center">
+                <h6 class="card-title">Výkon LED (Output)</h6>
+                <h2 id="val-output" class="display-6 fw-bold">---</h2>
+                <small>PWM (0-255)</small>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tabuľka -->
+          <div class="col-12">
+            <div class="card shadow-sm">
+              <div class="card-header bg-white">
+                <h5 class="mb-0">História meraní</h5>
+              </div>
+              <div
+                class="card-body p-0"
+                style="max-height: 400px; overflow-y: auto"
+              >
+                <table class="table table-hover table-striped mb-0 text-center">
+                  <thead class="table-light sticky-top">
+                    <tr>
+                      <th>Čas</th>
+                      <th>Setpoint [lx]</th>
+                      <th>Input [lx]</th>
+                      <th>Output [PWM]</th>
+                    </tr>
+                  </thead>
+                  <tbody id="log-table-body"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
-      <div class="card">
-        <div class="label">Aktuálna intenzita (Input)</div>
-        <div id="val-input" class="value">0</div>
-        <div class="label">Lux</div>
-      </div>
-      <div class="card">
-        <div class="label">Výkon LED (Output)</div>
-        <div id="val-output" class="value">0</div>
-        <div class="label">PWM (0-255)</div>
+
+      <!-- POHĽAD: GRAFY -->
+      <div id="view-graph" class="view-content d-none">
+        <div class="card shadow-sm mb-4">
+          <div class="card-body">
+            <div id="plot-lux" style="height: 400px"></div>
+          </div>
+        </div>
+        <div class="card shadow-sm">
+          <div class="card-body">
+            <div id="plot-pwm" style="height: 300px"></div>
+          </div>
+        </div>
       </div>
     </div>
 
-    <div class="log-container">
-      <h3>História meraní</h3>
-      <table>
-        <thead>
-          <tr>
-            <th>Čas</th>
-            <th>Setpoint [lx]</th>
-            <th>Input [lx]</th>
-            <th>Output [PWM]</th>
-          </tr>
-        </thead>
-        <tbody id="log-table-body">
-          <!-- Sem sa budú dopĺňať riadky -->
-        </tbody>
-      </table>
-    </div>
-
-    <script>
-      function openConnection() {
-        fetch("/open_connection", { method: "POST" })
-          .then((response) => response.json())
-          .then((data) => {
-            if (data.status === "connected") {
-              document.getElementById("connection-status").innerText =
-                "STAV: PRIPOJENÉ (Inicializované)";
-              document.getElementById("connection-status").style.color =
-                "green";
-
-              // Aktivujeme ostatné ovládacie prvky
-              document.getElementById("openBtn").disabled = true;
-              document.getElementById("closeBtn").disabled = false;
-              document.getElementById("startBtn").disabled = false;
-              // Tu môžeš povoliť aj input pre Luxy
-            } else {
-              alert("Chyba: " + data.msg);
-            }
-          });
-      }
-
-      function closeConnection() {
-        fetch("/close_connection", { method: "POST" })
-          .then((response) => response.json())
-          .then((data) => {
-            location.reload(); // Najjednoduchší spôsob ako resetovať web do východiskového stavu
-          });
-      }
-      // Funkcia na odoslanie nového Setpointu
-      function poslatUdaje() {
-        const val = document.getElementById("intenzita").value;
-        let formData = new FormData();
-        formData.append("intenzita", val);
-        fetch("/set_led", { method: "POST", body: formData });
-      }
-
-      let isRunning = false;
-
-      function startMonitoring() {
-        fetch("/start_monitoring", { method: "POST" }).then(() => {
-          isRunning = true;
-          document.getElementById("startBtn").disabled = true;
-          document.getElementById("stopBtn").disabled = false;
-        });
-      }
-
-      function stopMonitoring() {
-        fetch("/stop_monitoring", { method: "POST" }).then(() => {
-          isRunning = false;
-          document.getElementById("startBtn").disabled = false;
-          document.getElementById("stopBtn").disabled = true;
-        });
-      }
-
-      setInterval(() => {
-        fetch("/get_data")
-          .then((response) => response.json())
-          .then((data) => {
-            // Aktualizácia veľkých čísel v kartách
-            document.getElementById("val-setpoint").innerText = data.setpoint;
-            document.getElementById("val-input").innerText = data.input;
-            document.getElementById("val-output").innerText = data.output;
-
-            // PRIDÁVANIE DO ZOZNAMU (iba ak beží monitoring)
-            if (isRunning && data.setpoint !== "---") {
-              const tableBody = document.getElementById("log-table-body");
-              const now = new Date().toLocaleTimeString(); // Aktuálny čas
-
-              // Vytvoríme nový riadok
-              const newRow = `<tr>
-                        <td>${now}</td>
-                        <td>${data.setpoint}</td>
-                        <td>${data.input}</td>
-                        <td>${data.output}</td>
-                    </tr>`;
-
-              // Pridáme riadok na ZAČIATOK tabuľky (nové hore)
-              tableBody.insertAdjacentHTML("afterbegin", newRow);
-
-              // Voliteľné: Ak je riadkov priveľa (napr. 50), najstarší vymažeme
-              if (tableBody.rows.length > 50) {
-                tableBody.deleteRow(tableBody.rows.length - 1);
-              }
-            }
-          });
-      }, 1000);
-    </script>
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
   </body>
 </html>

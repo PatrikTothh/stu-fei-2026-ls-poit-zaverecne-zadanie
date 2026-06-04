@@ -1,0 +1,15 @@
+body {
+  background-color: #f8f9fa;
+}
+
+/* Fix pre sticky header v tabuľke pri Bootstrape */
+.sticky-top {
+  top: 0;
+  z-index: 10;
+  background-color: white !important;
+}
+
+/* Plotly grafy potrebujú trochu miesta pre texty okolo */
+.js-plotly-plot {
+  border-radius: 8px;
+}

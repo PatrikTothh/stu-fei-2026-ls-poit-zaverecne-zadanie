@@ -15,6 +15,15 @@ data_z_arduina = {
 ser = None  
 monitoring_active = False
 
+@app.route('/get_status')
+def get_status():
+    global ser, monitoring_active
+    is_connected = ser is not None and ser.is_open
+    return jsonify({
+        "connected": is_connected,
+        "monitoring": monitoring_active
+    })
+
 @app.route('/open_connection', methods=['POST'])
 def open_connection():
     global ser
