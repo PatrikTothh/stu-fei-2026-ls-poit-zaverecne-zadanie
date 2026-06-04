@@ -2,47 +2,88 @@
 <html lang="sk">
 <head>
     <meta charset="UTF-8">
-    <title>POIT - Ovládanie LED</title>
+    <title>POIT - PID Monitor</title>
     <style>
-        body { font-family: sans-serif; text-align: center; padding-top: 50px; }
-        .container { border: 1px solid #ccc; display: inline-block; padding: 20px; border-radius: 10px; }
+        body { font-family: sans-serif; text-align: center; background-color: #f4f4f4; }
+        .card { 
+            background: white; border-radius: 10px; padding: 20px; 
+            margin: 20px auto; width: 300px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        .value { font-size: 24px; font-weight: bold; color: #007bff; }
+        .label { color: #666; font-size: 14px; }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>Riadenie intenzity LED</h1>
-        
-        <input type="number" id="intenzita" name="intenzita" min="0" max="255" value="0">
-        <button onclick="poslatUdaje()">Nastaviť jas</button>
-        
-        <p id="status">Aktuálny stav: Čakám na vstup...</p>
+
+    <h1>PID Regulácia Intenzity Svetla</h1>
+
+    <div class="card">
+        <h3>Nastavenie</h3>
+        <input type="number" id="intenzita" value="100" min="0" max="1000">
+        <button onclick="poslatUdaje()">Nastaviť Luxy</button>
+    </div>
+
+    <div class="controls">
+        <button id="startBtn" class="btn-start" onclick="startMonitoring()">START</button>
+        <button id="stopBtn" class="btn-stop" onclick="stopMonitoring()" disabled>STOP</button>
+    </div>
+
+    <div style="display: flex; justify-content: center; gap: 20px;">
+        <div class="card">
+            <div class="label">Žiadaná hodnota (Setpoint)</div>
+            <div id="val-setpoint" class="value">0</div>
+            <div class="label">Lux</div>
+        </div>
+        <div class="card">
+            <div class="label">Aktuálna intenzita (Input)</div>
+            <div id="val-input" class="value">0</div>
+            <div class="label">Lux</div>
+        </div>
+        <div class="card">
+            <div class="label">Výkon LED (Output)</div>
+            <div id="val-output" class="value">0</div>
+            <div class="label">PWM (0-255)</div>
+        </div>
     </div>
 
     <script>
+        // Funkcia na odoslanie nového Setpointu
         function poslatUdaje() {
             const val = document.getElementById('intenzita').value;
-            const statusText = document.getElementById('status');
-
-            // Vytvoríme dáta pre server
             let formData = new FormData();
             formData.append('intenzita', val);
-
-            // Pošleme na server bez obnovy stránky
-            fetch('/set_led', {
-                method: 'POST',
-                body: formData
-            })
-            .then(response => response.json())
-            .then(data => {
-                if(data.status === "ok") {
-                    statusText.innerText = "Aktuálny stav: Nastavené na " + data.value;
-                }
-            })
-            .catch(error => {
-                statusText.innerText = "Chyba pri komunikácii!";
-                console.error('Error:', error);
-            });
+            fetch('/set_led', { method: 'POST', body: formData });
         }
+
+        let isRunning = false;
+
+        function startMonitoring() {
+            fetch('/start_monitoring', { method: 'POST' })
+                .then(() => {
+                    isRunning = true;
+                    document.getElementById('startBtn').disabled = true;
+                    document.getElementById('stopBtn').disabled = false;
+                });
+        }
+
+        function stopMonitoring() {
+            fetch('/stop_monitoring', { method: 'POST' })
+                .then(() => {
+                    isRunning = false;
+                    document.getElementById('startBtn').disabled = false;
+                    document.getElementById('stopBtn').disabled = true;
+                });
+        }
+
+        setInterval(() => {
+            fetch('/get_data')
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('val-setpoint').innerText = data.setpoint;
+                    document.getElementById('val-input').innerText = data.input;
+                    document.getElementById('val-output').innerText = data.output;
+                });
+        }, 100);
     </script>
 </body>
 </html>
