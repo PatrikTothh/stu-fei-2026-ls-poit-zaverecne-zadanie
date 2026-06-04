@@ -2,6 +2,8 @@ from flask import Flask, render_template, request, jsonify
 import serial
 import time
 import threading
+import json
+from datetime import datetime
 
 app = Flask(__name__)
 
@@ -14,6 +16,8 @@ data_z_arduina = {
 
 ser = None  
 monitoring_active = False
+current_session_data = []
+last_log_time = 0
 
 @app.route('/get_status')
 def get_status():
@@ -45,23 +49,33 @@ def close_connection():
         return jsonify({"status": "disconnected", "msg": "Systém deaktivovaný"})
     return jsonify({"status": "error", "msg": "Nepodarilo sa zatvoriť"})
     
+
 # Funkcia, ktorá beží na pozadí a stále číta Serial
 def read_serial():
     global data_z_arduina
-    while True: # Beží stále
-        if ser and ser.is_open: # Číta len ak je port skutočne otvorený
+    while True:
+        # Čítame len vtedy, ak je port otvorený
+        if ser and ser.is_open:
             try:
+                # Prečítame všetky správy v buffri, aby sme nemali lag
                 while ser.in_waiting > 0:
                     line = ser.readline().decode('utf-8').strip()
                     if line:
                         parts = line.split(',')
                         if len(parts) == 3:
-                            data_z_arduina["setpoint"] = parts[0]
-                            data_z_arduina["input"] = parts[1]
-                            data_z_arduina["output"] = parts[2]
+                            # Len aktualizujeme "posledný známy stav"
+                            data_z_arduina = {
+                                "setpoint": parts[0],
+                                "input": parts[1],
+                                "output": parts[2]
+                            }
             except Exception as e:
-                print(f"Chyba pri čítaní: {e}")
-        time.sleep(0.1)
+                # Ak nastane chyba (napr. odpojený kábel), vypíšeme ju
+                print(f"Chyba pri čítaní Serialu: {e}")
+                time.sleep(1) # Počkáme sekundu pred ďalším pokusom
+        
+        # Malá pauza, aby sme nevyťažili procesor na 100%
+        time.sleep(0.01)
 
 # Spustenie čítacieho vlákna
 thread = threading.Thread(target=read_serial, daemon=True)
@@ -75,25 +89,76 @@ monitoring_active = False  # Premenná na sledovanie stavu
 
 @app.route('/get_data')
 def get_data():
-    if monitoring_active:
-        return jsonify(data_z_arduina)
-    else:
-        # Ak je monitoring vypnutý, posielame nuly alebo pomlčky
-        return jsonify({"setpoint": "---", "input": "---", "output": "---"})
+    global data_z_arduina, current_session_data, monitoring_active
+    
+    # Ak je monitoring zapnutý, práve teraz (v túto sekundu) uložíme snapshot
+    if monitoring_active and data_z_arduina["setpoint"] != "---":
+        timestamp_ms = datetime.now().strftime("%H:%M:%S")
+        
+        # Vytvoríme kópiu aktuálnych dát s časovou pečiatkou
+        entry = {
+            "timestamp": timestamp_ms,
+            "setpoint": data_z_arduina["setpoint"],
+            "input": data_z_arduina["input"],
+            "output": data_z_arduina["output"]
+        }
+        current_session_data.append(entry)
+        print(f"Uložená vzorka do pamäte: {timestamp_ms}")
+
+    return jsonify(data_z_arduina)
+
 
 @app.route('/start_monitoring', methods=['POST'])
 def start_monitoring():
-    global monitoring_active
+    global monitoring_active, current_session_data
+    current_session_data = [] # Vyčistiť staré dáta z predošlého merania
     monitoring_active = True
-    print("Monitoring zapnutý")
+    print("Monitoring a logovanie spustené.")
     return jsonify({"status": "active"})
 
 @app.route('/stop_monitoring', methods=['POST'])
 def stop_monitoring():
-    global monitoring_active
+    global monitoring_active, current_session_data
     monitoring_active = False
-    print("Monitoring vypnutý")
+    
+    if current_session_data:
+        # Pripravíme finálny objekt pre tento "beh" (session)
+        log_entry = {
+            "datum": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "pocet_merani": len(current_session_data),
+            "merania": current_session_data
+        }
+        
+        # Zápis do súboru (append mode 'a' - pridá na koniec súboru)
+        try:
+            with open("logs.txt", "a", encoding="utf-8") as f:
+                # json.dumps vytvorí jeden riadok z celého objektu
+                f.write(json.dumps(log_entry) + "\n")
+            print(f"Uložených {len(current_session_data)} meraní do logs.txt")
+        except Exception as e:
+            print(f"Chyba pri zápise do súboru: {e}")
+        
+        current_session_data = [] # Vymazať z pamäte po zápise
+        
     return jsonify({"status": "inactive"})
+
+@app.route('/get_log/<int:index>')
+def get_log(index):
+    try:
+        with open("logs.txt", "r", encoding="utf-8") as f:
+            lines = f.readlines()
+            # Indexovanie v zoznamoch začína od 0, ale používateľ zadá 1, 2, 3...
+            real_index = index - 1 
+            
+            if 0 <= real_index < len(lines):
+                # Riadok je už uložený ako JSON string, tak ho len pošleme
+                return lines[real_index]
+            else:
+                return jsonify({"error": "Záznam s týmto číslom neexistuje."}), 404
+    except FileNotFoundError:
+        return jsonify({"error": "Súbor s logmi ešte neexistuje. Najprv niečo odmerajte."}), 404
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 @app.route('/set_led', methods=['POST'])
 def set_led():

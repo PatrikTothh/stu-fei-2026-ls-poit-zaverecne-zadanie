@@ -97,6 +97,8 @@ function showView(view) {
   const dash = document.getElementById("view-dashboard");
   const graph = document.getElementById("view-graph");
   const gauges = document.getElementById("view-gauges");
+  const archive = document.getElementById("view-archive");
+  const btnArchive = document.getElementById("btn-archive");
 
   // Tlačidlá
   const btnDash = document.getElementById("btn-dash");
@@ -110,6 +112,18 @@ function showView(view) {
   btnDash.classList.remove("active");
   btnGraph.classList.remove("active");
   btnGauges.classList.remove("active");
+
+  // Skryť všetko (pridaj aj archive)
+  archive.classList.add("d-none");
+  btnArchive.classList.remove("active");
+
+  // Ak view === 'archive'
+  if (view === "archive") {
+    archive.classList.remove("d-none");
+    btnArchive.classList.add("active");
+    Plotly.Plots.resize("archive-plot-lux");
+    Plotly.Plots.resize("archive-plot-pwm");
+  }
 
   // Zobraziť vybrané
   if (view === "dashboard") {
@@ -181,7 +195,7 @@ function initGauges() {
     height: 300,
     units: "Lux (lx)",
     minValue: 0,
-    maxValue: 1650, // Nastavené na 1650
+    maxValue: 1650,
     majorTicks: ["0", "250", "500", "750", "1000", "1250", "1500", "1650"],
     minorTicks: 5,
     highlights: [{ from: 1400, to: 1650, color: "rgba(200, 50, 50, .75)" }],
@@ -195,7 +209,7 @@ function initGauges() {
     needleCircleInner: false,
     animationDuration: 500,
     animationRule: "linear",
-    valueBox: true, // Zobrazí aj digitálnu hodnotu pod ručičkou
+    valueBox: true,
     fontValueSize: 30,
   }).draw();
 
@@ -220,6 +234,98 @@ function initGauges() {
 
 // Zavolaj ju na konci script.js
 initGauges();
+
+function loadArchive() {
+  const index = document.getElementById("archiveIndex").value;
+  const info = document.getElementById("archive-info");
+
+  fetch(`/get_log/${index}`)
+    .then((response) => {
+      if (!response.ok) throw new Error("Záznam nebol nájdený.");
+      return response.json();
+    })
+    .then((data) => {
+      info.innerText = `Načítané meranie zo dňa: ${data.datum} (${data.pocet_merani} vzoriek)`;
+
+      const x = data.merania.map((m) => m.timestamp);
+      const yLux = data.merania.map((m) => m.input);
+      const ySet = data.merania.map((m) => m.setpoint);
+      const yPwm = data.merania.map((m) => m.output);
+
+      // Spoločné nastavenia vzhľadu (rovnaké ako pri live grafoch)
+      const commonLayout = {
+        font: {
+          family: "Segoe UI, Roboto, Helvetica, Arial, sans-serif",
+          size: 12,
+        },
+        paper_bgcolor: "rgba(0,0,0,0)",
+        plot_bgcolor: "#fcfcfc",
+        showlegend: true,
+        legend: { orientation: "h", y: -0.2 },
+        margin: { t: 40, b: 60, l: 60, r: 40 },
+      };
+
+      // 1. ARCHÍV LUX (Setpoint + Input)
+      const traceLux = [
+        {
+          x: x,
+          y: ySet,
+          name: "Žiadaná (Setpoint)",
+          line: { color: "#ff7f0e", width: 3 },
+        },
+        {
+          x: x,
+          y: yLux,
+          name: "Aktuálna (Input)",
+          line: { color: "#1f77b4", width: 2 },
+        },
+      ];
+
+      const layoutLux = {
+        ...commonLayout,
+        title: {
+          text: "Archív: Priebeh intenzity",
+          font: { size: 18, color: "#2c3e50" },
+        },
+        yaxis: { title: "Intenzita [lx]", gridcolor: "#eee" },
+        xaxis: { title: "Čas", gridcolor: "#eee" },
+      };
+
+      // 2. ARCHÍV PWM (Output)
+      const tracePwm = [
+        {
+          x: x,
+          y: yPwm,
+          name: "Výkon (PWM)",
+          fill: "tozeroy",
+          fillcolor: "rgba(44, 160, 44, 0.2)",
+          line: { color: "#2ca02c", width: 2 },
+        },
+      ];
+
+      const layoutPwm = {
+        ...commonLayout,
+        title: {
+          text: "Archív: Výkon regulátora",
+          font: { size: 16, color: "#2c3e50" },
+        },
+        yaxis: { title: "PWM (0-255)", range: [0, 260], gridcolor: "#eee" },
+        xaxis: { title: "Čas", gridcolor: "#eee" },
+      };
+
+      // Vykreslenie
+      Plotly.newPlot("archive-plot-lux", traceLux, layoutLux, {
+        responsive: true,
+      });
+      Plotly.newPlot("archive-plot-pwm", tracePwm, layoutPwm, {
+        responsive: true,
+      });
+    })
+    .catch((err) => {
+      alert(err.message);
+      info.innerText = "";
+    });
+}
 
 setInterval(() => {
   fetch("/get_data")

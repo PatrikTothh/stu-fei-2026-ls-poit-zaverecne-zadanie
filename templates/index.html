@@ -71,6 +71,15 @@
             Ciferníky
           </button>
         </li>
+        <li class="nav-item">
+          <button
+            id="btn-archive"
+            class="nav-link"
+            onclick="showView('archive')"
+          >
+            Archív
+          </button>
+        </li>
       </ul>
 
       <!-- POHĽAD: MONITOR -->
@@ -224,6 +233,39 @@
       </div>
     </div>
 
-    <script src="{{ url_for('static', filename='script.js') }}"></script>
+    <div id="view-archive" class="view-content d-none">
+      <div class="card shadow-sm mb-4">
+        <div class="card-body">
+          <h5 class="card-title">Načítať meranie z archívu</h5>
+          <div
+            class="input-group mb-3"
+            style="max-width: 400px; margin: 0 auto"
+          >
+            <span class="input-group-text">Číslo riadku v logs.txt</span>
+            <input
+              type="number"
+              id="archiveIndex"
+              class="form-control"
+              value="1"
+              min="1"
+            />
+            <button class="btn btn-primary" onclick="loadArchive()">
+              Vykresliť
+            </button>
+          </div>
+          <div id="archive-info" class="text-muted small text-center"></div>
+        </div>
+      </div>
+
+      <!-- Grafy pre archív (rovnaké ako live grafy) -->
+      <div class="graph-container">
+        <div id="archive-plot-lux" style="height: 350px"></div>
+      </div>
+      <div class="graph-container">
+        <div id="archive-plot-pwm" style="height: 250px"></div>
+      </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='scripts/script.js') }}"></script>
   </body>
 </html>
