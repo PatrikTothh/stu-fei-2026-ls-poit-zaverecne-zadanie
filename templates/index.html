@@ -1,89 +1,150 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="sk">
-<head>
-    <meta charset="UTF-8">
+  <head>
+    <meta charset="UTF-8" />
     <title>POIT - PID Monitor</title>
     <style>
-        body { font-family: sans-serif; text-align: center; background-color: #f4f4f4; }
-        .card { 
-            background: white; border-radius: 10px; padding: 20px; 
-            margin: 20px auto; width: 300px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-        }
-        .value { font-size: 24px; font-weight: bold; color: #007bff; }
-        .label { color: #666; font-size: 14px; }
+      body {
+        font-family: sans-serif;
+        text-align: center;
+        background-color: #f4f4f4;
+      }
+      .card {
+        background: white;
+        border-radius: 10px;
+        padding: 20px;
+        margin: 20px auto;
+        width: 300px;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+      }
+      .value {
+        font-size: 24px;
+        font-weight: bold;
+        color: #007bff;
+      }
+      .label {
+        color: #666;
+        font-size: 14px;
+      }
     </style>
-</head>
-<body>
-
+  </head>
+  <body>
     <h1>PID Regulácia Intenzity Svetla</h1>
 
+    <div class="card" style="width: 80%; max-width: 650px">
+      <div id="connection-status" style="color: red; font-weight: bold">
+        STAV: ODPOJENÉ
+      </div>
+      <br />
+      <button id="openBtn" class="btn-start" onclick="openConnection()">
+        OPEN (Inicializácia)
+      </button>
+      <button
+        id="closeBtn"
+        class="btn-stop"
+        onclick="closeConnection()"
+        disabled
+      >
+        CLOSE (Ukončenie)
+      </button>
+    </div>
     <div class="card">
-        <h3>Nastavenie</h3>
-        <input type="number" id="intenzita" value="100" min="0" max="1000">
-        <button onclick="poslatUdaje()">Nastaviť Luxy</button>
+      <h3>Nastavenie</h3>
+      <input type="number" id="intenzita" value="100" min="0" max="1000" />
+      <button onclick="poslatUdaje()">Nastaviť Luxy</button>
     </div>
 
     <div class="controls">
-        <button id="startBtn" class="btn-start" onclick="startMonitoring()">START</button>
-        <button id="stopBtn" class="btn-stop" onclick="stopMonitoring()" disabled>STOP</button>
+      <button id="startBtn" class="btn-start" onclick="startMonitoring()">
+        START
+      </button>
+      <button id="stopBtn" class="btn-stop" onclick="stopMonitoring()" disabled>
+        STOP
+      </button>
     </div>
 
-    <div style="display: flex; justify-content: center; gap: 20px;">
-        <div class="card">
-            <div class="label">Žiadaná hodnota (Setpoint)</div>
-            <div id="val-setpoint" class="value">0</div>
-            <div class="label">Lux</div>
-        </div>
-        <div class="card">
-            <div class="label">Aktuálna intenzita (Input)</div>
-            <div id="val-input" class="value">0</div>
-            <div class="label">Lux</div>
-        </div>
-        <div class="card">
-            <div class="label">Výkon LED (Output)</div>
-            <div id="val-output" class="value">0</div>
-            <div class="label">PWM (0-255)</div>
-        </div>
+    <div style="display: flex; justify-content: center; gap: 20px">
+      <div class="card">
+        <div class="label">Žiadaná hodnota (Setpoint)</div>
+        <div id="val-setpoint" class="value">0</div>
+        <div class="label">Lux</div>
+      </div>
+      <div class="card">
+        <div class="label">Aktuálna intenzita (Input)</div>
+        <div id="val-input" class="value">0</div>
+        <div class="label">Lux</div>
+      </div>
+      <div class="card">
+        <div class="label">Výkon LED (Output)</div>
+        <div id="val-output" class="value">0</div>
+        <div class="label">PWM (0-255)</div>
+      </div>
     </div>
 
     <script>
-        // Funkcia na odoslanie nového Setpointu
-        function poslatUdaje() {
-            const val = document.getElementById('intenzita').value;
-            let formData = new FormData();
-            formData.append('intenzita', val);
-            fetch('/set_led', { method: 'POST', body: formData });
-        }
+      function openConnection() {
+        fetch("/open_connection", { method: "POST" })
+          .then((response) => response.json())
+          .then((data) => {
+            if (data.status === "connected") {
+              document.getElementById("connection-status").innerText =
+                "STAV: PRIPOJENÉ (Inicializované)";
+              document.getElementById("connection-status").style.color =
+                "green";
 
-        let isRunning = false;
+              // Aktivujeme ostatné ovládacie prvky
+              document.getElementById("openBtn").disabled = true;
+              document.getElementById("closeBtn").disabled = false;
+              document.getElementById("startBtn").disabled = false;
+              // Tu môžeš povoliť aj input pre Luxy
+            } else {
+              alert("Chyba: " + data.msg);
+            }
+          });
+      }
 
-        function startMonitoring() {
-            fetch('/start_monitoring', { method: 'POST' })
-                .then(() => {
-                    isRunning = true;
-                    document.getElementById('startBtn').disabled = true;
-                    document.getElementById('stopBtn').disabled = false;
-                });
-        }
+      function closeConnection() {
+        fetch("/close_connection", { method: "POST" })
+          .then((response) => response.json())
+          .then((data) => {
+            location.reload(); // Najjednoduchší spôsob ako resetovať web do východiskového stavu
+          });
+      }
+      // Funkcia na odoslanie nového Setpointu
+      function poslatUdaje() {
+        const val = document.getElementById("intenzita").value;
+        let formData = new FormData();
+        formData.append("intenzita", val);
+        fetch("/set_led", { method: "POST", body: formData });
+      }
 
-        function stopMonitoring() {
-            fetch('/stop_monitoring', { method: 'POST' })
-                .then(() => {
-                    isRunning = false;
-                    document.getElementById('startBtn').disabled = false;
-                    document.getElementById('stopBtn').disabled = true;
-                });
-        }
+      let isRunning = false;
 
-        setInterval(() => {
-            fetch('/get_data')
-                .then(response => response.json())
-                .then(data => {
-                    document.getElementById('val-setpoint').innerText = data.setpoint;
-                    document.getElementById('val-input').innerText = data.input;
-                    document.getElementById('val-output').innerText = data.output;
-                });
-        }, 100);
+      function startMonitoring() {
+        fetch("/start_monitoring", { method: "POST" }).then(() => {
+          isRunning = true;
+          document.getElementById("startBtn").disabled = true;
+          document.getElementById("stopBtn").disabled = false;
+        });
+      }
+
+      function stopMonitoring() {
+        fetch("/stop_monitoring", { method: "POST" }).then(() => {
+          isRunning = false;
+          document.getElementById("startBtn").disabled = false;
+          document.getElementById("stopBtn").disabled = true;
+        });
+      }
+
+      setInterval(() => {
+        fetch("/get_data")
+          .then((response) => response.json())
+          .then((data) => {
+            document.getElementById("val-setpoint").innerText = data.setpoint;
+            document.getElementById("val-input").innerText = data.input;
+            document.getElementById("val-output").innerText = data.output;
+          });
+      }, 100);
     </script>
-</body>
+  </body>
 </html>
