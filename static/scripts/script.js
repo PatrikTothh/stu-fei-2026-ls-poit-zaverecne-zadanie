@@ -94,50 +94,56 @@ let graphData = {
 
 // Prepínanie pohľadov
 function showView(view) {
-  const dash = document.getElementById("view-dashboard");
-  const graph = document.getElementById("view-graph");
-  const gauges = document.getElementById("view-gauges");
-  const archive = document.getElementById("view-archive");
-  const btnArchive = document.getElementById("btn-archive");
+  // Získanie všetkých pohľadov
+  const views = [
+    "view-dashboard",
+    "view-graph",
+    "view-gauges",
+    "view-archive",
+    "view-database",
+  ];
+  const buttons = [
+    "btn-dash",
+    "btn-graph",
+    "btn-gauges",
+    "btn-archive",
+    "btn-database",
+  ];
 
-  // Tlačidlá
-  const btnDash = document.getElementById("btn-dash");
-  const btnGraph = document.getElementById("btn-graph");
-  const btnGauges = document.getElementById("btn-gauges");
+  // Skryť všetky pohľady a deaktivovať tlačidlá
+  views.forEach((v) => document.getElementById(v).classList.add("d-none"));
+  buttons.forEach((b) => document.getElementById(b).classList.remove("active"));
 
-  // Skryť všetko
-  dash.classList.add("d-none");
-  graph.classList.add("d-none");
-  gauges.classList.add("d-none");
-  btnDash.classList.remove("active");
-  btnGraph.classList.remove("active");
-  btnGauges.classList.remove("active");
+  // Zobraziť ten správny a aktivovať tlačidlo
+  const currentView = document.getElementById("view-" + view);
+  const currentBtn = document.getElementById(
+    "btn-" + (view === "dashboard" ? "dash" : view),
+  );
 
-  // Skryť všetko (pridaj aj archive)
-  archive.classList.add("d-none");
-  btnArchive.classList.remove("active");
+  if (currentView) currentView.classList.remove("d-none");
+  if (currentBtn) currentBtn.classList.add("active");
 
-  // Ak view === 'archive'
-  if (view === "archive") {
-    archive.classList.remove("d-none");
-    btnArchive.classList.add("active");
-    Plotly.Plots.resize("archive-plot-lux");
-    Plotly.Plots.resize("archive-plot-pwm");
-  }
-
-  // Zobraziť vybrané
-  if (view === "dashboard") {
-    dash.classList.remove("d-none");
-    btnDash.classList.add("active");
-  } else if (view === "graph") {
-    graph.classList.remove("d-none");
-    btnGraph.classList.add("active");
+  // Špeciálne akcie pri prepnutí (Resize grafov)
+  if (view === "graph") {
     Plotly.Plots.resize("plot-lux");
     Plotly.Plots.resize("plot-pwm");
-  } else if (view === "gauges") {
-    gauges.classList.remove("d-none");
-    btnGauges.classList.add("active");
+  } else if (view === "archive") {
+    Plotly.Plots.resize("archive-plot-lux");
+    Plotly.Plots.resize("archive-plot-pwm");
+  } else if (view === "database") {
+    Plotly.Plots.resize("db-plot-lux");
+    Plotly.Plots.resize("db-plot-pwm");
   }
+}
+
+function loadDatabase() {
+  const id = document.getElementById("dbIndex").value;
+  const info = document.getElementById("db-info");
+
+  info.innerHTML = `<span class="text-warning">Pripravujem pripojenie k databáze pre ID: ${id}...</span>`;
+
+  console.log("Tu bude volanie fetch('/get_db_log/" + id + "')");
+  // Sem neskôr doplníme fetch volanie, keď budeme mať hotový app.py pre DB
 }
 
 // Inicializácia Plotly grafu
