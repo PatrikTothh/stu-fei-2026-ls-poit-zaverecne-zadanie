@@ -7,13 +7,13 @@ import MySQLdb  # Knižnica z cvičenia
 from datetime import datetime
 from flask import Flask, render_template, request, jsonify
 
+# Inicializácia Flask aplikácie
 app = Flask(__name__)
 
-# --- KONFIGURÁCIA ---
-# Automatický port (Linux vs Windows)
-PORT = '/dev/ttyACM0' if platform.system() != "Windows" else 'COM3'
+# Automatický výber sériového portu podľa operačného systému
+PORT = '/dev/ttyACM0' if platform.system() != "Windows" else 'COM6'
 
-# DB konfigurácia podľa tvojho zadania
+# Konfigurácia pripojenia k MySQL databáze
 DB_CONFIG = {
     "host": "localhost",
     "user": "root",
@@ -21,26 +21,28 @@ DB_CONFIG = {
     "db": "poit_db"
 }
 
-# Globálne premenné
+# Globálne premenné aplikácie
 ser = None
 monitoring_active = False
 current_session_data = []
 data_z_arduina = {"setpoint": "---", "input": "---", "output": "---"}
 
-# --- DATABÁZOVÉ FUNKCIE ---
+# Vytvorenie databázového pripojenia
 def get_db_connection():
     return MySQLdb.connect(**DB_CONFIG)
 
-# --- SERIAL ČÍTANIE ---
+# Funkcia pre nepretržité čítanie dát z Arduina
 def read_serial():
     global data_z_arduina
     while True:
         if ser and ser.is_open:
             try:
+                # Spracovanie všetkých prijatých dát zo sériovej linky
                 while ser.in_waiting > 0:
                     line = ser.readline().decode('utf-8').strip()
                     if line:
                         parts = line.split(',')
+                        # Očakávaný formát: setpoint,input,output
                         if len(parts) == 3:
                             data_z_arduina = {
                                 "setpoint": parts[0],
@@ -51,26 +53,30 @@ def read_serial():
                 print(f"Serial error: {e}")
         time.sleep(0.01)
 
+# Spustenie samostatného vlákna pre komunikáciu s Arduinom
 thread = threading.Thread(target=read_serial, daemon=True)
 thread.start()
 
-# --- ROUTES ---
+# Zobrazenie hlavnej stránky aplikácie
 @app.route('/')
 def index():
     return render_template('index.html')
 
+# Otvorenie sériového spojenia s Arduinom
 @app.route('/open_connection', methods=['POST'])
 def open_connection():
     global ser
     try:
         if ser is None or not ser.is_open:
             ser = serial.Serial(PORT, 115200, timeout=1)
+            # Čakanie na inicializáciu Arduina po otvorení portu
             time.sleep(2)
             return jsonify({"status": "connected"})
         return jsonify({"status": "already_connected"})
     except Exception as e:
         return jsonify({"status": "error", "msg": str(e)}), 500
 
+# Ukončenie sériovej komunikácie
 @app.route('/close_connection', methods=['POST'])
 def close_connection():
     global ser, monitoring_active
@@ -80,9 +86,12 @@ def close_connection():
         return jsonify({"status": "disconnected"})
     return jsonify({"status": "error"})
 
+# Poskytnutie aktuálnych dát klientovi
 @app.route('/get_data')
 def get_data():
     global data_z_arduina, current_session_data, monitoring_active
+    
+    # Počas monitorovania sa údaje ukladajú do aktuálnej série meraní
     if monitoring_active and data_z_arduina["setpoint"] != "---":
         entry = {
             "timestamp": datetime.now().strftime("%H:%M:%S.%f")[:-3],
@@ -93,6 +102,7 @@ def get_data():
         current_session_data.append(entry)
     return jsonify(data_z_arduina)
 
+# Spustenie novej série meraní
 @app.route('/start_monitoring', methods=['POST'])
 def start_monitoring():
     global monitoring_active, current_session_data
@@ -100,23 +110,25 @@ def start_monitoring():
     monitoring_active = True
     return jsonify({"status": "active"})
 
+# Ukončenie monitorovania a uloženie dát
 @app.route('/stop_monitoring', methods=['POST'])
 def stop_monitoring():
     global monitoring_active, current_session_data
     monitoring_active = False
     
     if current_session_data:
+        # Vytvorenie JSON záznamu série meraní
         json_string = json.dumps({
             "datum": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "pocet_merani": len(current_session_data),
             "merania": current_session_data
         })
         
-        # 1. Uloženie do SÚBORU (logs.txt)
+        # Uloženie série meraní do textového súboru
         with open("logs.txt", "a") as f:
             f.write(json_string + "\n")
             
-        # 2. Uloženie do MYSQL (BOD 7)
+        # Uloženie série meraní do databázy
         try:
             db = get_db_connection()
             cursor = db.cursor()
@@ -131,7 +143,7 @@ def stop_monitoring():
             
     return jsonify({"status": "inactive"})
 
-# NAČÍTANIE Z DB (Pre tvoj nový tab Databáza)
+# Načítanie záznamu z databázy podľa ID
 @app.route('/get_db_log/<int:id>')
 def get_db_log(id):
     try:
@@ -142,25 +154,24 @@ def get_db_log(id):
         db.close()
         
         if row:
-            # row[0] už obsahuje JSON string, Flask ho pošle ako response
             return row[0]
         else:
             return jsonify({"error": "ID nenájdené"}), 404
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-
+# Načítanie záznamu zo súboru logs.txt
 @app.route('/get_log/<int:index>')
 def get_log(index):
     try:
-        # Uisti sa, že názov súboru sedí s tým, čo používaš v stop_monitoring
+        
         with open("logs.txt", "r", encoding="utf-8") as f:
             lines = f.readlines()
-            # Premeníme užívateľské indexovanie (od 1) na programátorské (od 0)
+            
             real_index = index - 1 
             
             if 0 <= real_index < len(lines):
-                # Riadok je už uložený ako JSON string, tak ho len vrátime
+                
                 return lines[real_index]
             else:
                 return jsonify({"error": "Záznam s týmto číslom v súbore neexistuje."}), 404
@@ -169,6 +180,7 @@ def get_log(index):
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+# Odoslanie novej hodnoty intenzity LED do Arduina
 @app.route('/set_led', methods=['POST'])
 def set_led():
     hodnota = request.form.get('intenzita')
@@ -177,11 +189,12 @@ def set_led():
         return jsonify({"status": "ok"})
     return jsonify({"status": "error"}), 400
 
-# Cache-control pre Linux prehliadač
+# Zakázanie cache pre získavanie aktuálnych údajov
 @app.after_request
 def add_header(response):
     response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
     return response
 
+# Spustenie Flask servera
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True, use_reloader=False)
