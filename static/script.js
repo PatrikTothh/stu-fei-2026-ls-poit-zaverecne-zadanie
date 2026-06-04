@@ -1,3 +1,5 @@
+let luxGauge, pwmGauge;
+
 function updateUI(isConnected) {
   const statusBadge = document.getElementById("connection-status");
   const openBtn = document.getElementById("openBtn");
@@ -94,22 +96,33 @@ let graphData = {
 function showView(view) {
   const dash = document.getElementById("view-dashboard");
   const graph = document.getElementById("view-graph");
+  const gauges = document.getElementById("view-gauges");
+
+  // Tlačidlá
   const btnDash = document.getElementById("btn-dash");
   const btnGraph = document.getElementById("btn-graph");
+  const btnGauges = document.getElementById("btn-gauges");
 
+  // Skryť všetko
+  dash.classList.add("d-none");
+  graph.classList.add("d-none");
+  gauges.classList.add("d-none");
+  btnDash.classList.remove("active");
+  btnGraph.classList.remove("active");
+  btnGauges.classList.remove("active");
+
+  // Zobraziť vybrané
   if (view === "dashboard") {
     dash.classList.remove("d-none");
-    graph.classList.add("d-none");
     btnDash.classList.add("active");
-    btnGraph.classList.remove("active");
-  } else {
-    dash.classList.add("d-none");
+  } else if (view === "graph") {
     graph.classList.remove("d-none");
-    btnDash.classList.remove("active");
     btnGraph.classList.add("active");
-
     Plotly.Plots.resize("plot-lux");
     Plotly.Plots.resize("plot-pwm");
+  } else if (view === "gauges") {
+    gauges.classList.remove("d-none");
+    btnGauges.classList.add("active");
   }
 }
 
@@ -160,6 +173,53 @@ function initPlots() {
 
 // Nezabudni zavolať novú funkciu pri načítaní
 initPlots();
+
+function initGauges() {
+  luxGauge = new RadialGauge({
+    renderTo: "gauge-lux",
+    width: 300,
+    height: 300,
+    units: "Lux (lx)",
+    minValue: 0,
+    maxValue: 1650, // Nastavené na 1650
+    majorTicks: ["0", "250", "500", "750", "1000", "1250", "1500", "1650"],
+    minorTicks: 5,
+    highlights: [{ from: 1400, to: 1650, color: "rgba(200, 50, 50, .75)" }],
+    colorPlate: "#fff",
+    borderShadowWidth: 0,
+    borders: false,
+    needleType: "arrow",
+    needleWidth: 2,
+    needleCircleSize: 7,
+    needleCircleOuter: true,
+    needleCircleInner: false,
+    animationDuration: 500,
+    animationRule: "linear",
+    valueBox: true, // Zobrazí aj digitálnu hodnotu pod ručičkou
+    fontValueSize: 30,
+  }).draw();
+
+  pwmGauge = new RadialGauge({
+    renderTo: "gauge-pwm",
+    width: 300,
+    height: 300,
+    units: "PWM (0-255)",
+    minValue: 0,
+    maxValue: 255,
+    majorTicks: ["0", "50", "100", "150", "200", "255"],
+    minorTicks: 5,
+    highlights: [{ from: 200, to: 255, color: "rgba(200, 50, 50, .75)" }],
+    colorPlate: "#fff",
+    borders: false,
+    needleType: "arrow",
+    animationDuration: 500,
+    valueBox: true,
+    fontValueSize: 30,
+  }).draw();
+}
+
+// Zavolaj ju na konci script.js
+initGauges();
 
 setInterval(() => {
   fetch("/get_data")
@@ -214,6 +274,14 @@ setInterval(() => {
           },
           [0],
         );
+      }
+
+      if (isRunning && data.input !== "---") {
+        luxGauge.value = data.input;
+        pwmGauge.value = data.output;
+      } else {
+        luxGauge.value = 0;
+        pwmGauge.value = 0;
       }
     });
 }, 1000);
